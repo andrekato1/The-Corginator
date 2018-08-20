@@ -20,7 +20,7 @@ for follower in Cursor(api.followers).items():
 def send_corgi(username, status_id):
 	greetings = ['Did someone ask for a Corgi picture?', 'Here\'s a Corgi to liven up your day.', 'I hope you\'re having a great day. Here, have a Corgi.', 'What do you call a Corgi with three eyes? A Corgiii.', 'Why can\'t Corgis bring in the round at the pub? Because they are a bit short.', 'What did one Corgi say to another? \"Woof\".', 'What do you call a Corgi out of cash? A Pembroke!']
 	image_path = "corgis/"
-	number_images = sum([len(files) for r, d, files in os.walk("C:/Users/Andre/Desktop/TheCorginator/corgis")])
+	number_images = sum([len(files) for r, d, files in os.walk("C:/PathToFolder/corgis")])
 	image_path += "{}.jpeg".format(randint(1, number_images))
 	api.update_with_media(image_path, status = '@{} {}'.format(username, choice(greetings)), in_reply_to_status_id = status_id)
 
