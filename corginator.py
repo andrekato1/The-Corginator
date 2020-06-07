@@ -1,59 +1,57 @@
+import tweepy
 import os
-from credentials import *
+from dotenv import load_dotenv
 from random import choice
-from random import randint
-from tweepy.streaming import StreamListener
-from tweepy import OAuthHandler
-from tweepy import StreamListener
-from tweepy import Stream
-from tweepy import API
-from tweepy import Cursor
+from imutil import Drawer
 
-auth = OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_secret) 
-api = API(auth)
+load_dotenv()
 
-for follower in Cursor(api.followers).items():
-    follower.follow()
-    print("Followed back: {}".format(follower.screen_name))
+CONSUMER_KEY = os.getenv("CONSUMER_KEY")
+CONSUMER_SECRET = os.getenv("CONSUMER_SECRET")
+ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
+ACCESS_SECRET = os.getenv("ACCESS_SECRET")
 
-def send_corgi(username, status_id):
-	greetings = ['Did someone ask for a Corgi picture?', 'Here\'s a Corgi to liven up your day.', 'I hope you\'re having a great day. Here, have a Corgi.', 'What do you call a Corgi with three eyes? A Corgiii.', 'Why can\'t Corgis bring in the round at the pub? Because they are a bit short.', 'What did one Corgi say to another? \"Woof\".', 'What do you call a Corgi out of cash? A Pembroke!']
-	image_path = "corgis/"
-	number_images = sum([len(files) for r, d, files in os.walk("C:/PathToFolder/corgis")])
-	image_path += "{}.jpeg".format(randint(1, number_images))
-	api.update_with_media(image_path, status = '@{} {}'.format(username, choice(greetings)), in_reply_to_status_id = status_id)
+class TweetListener(tweepy.StreamListener):
+    def __init__(self, api):
+        self.api = api
 
-class Listener(StreamListener):
-	def on_status(self, status):
-		username = status.user.screen_name
-		status_id = status.id
-		print("Received tweet.")
-		send_corgi(username, status_id)
+    def on_status(self, tweet):
+        drawer = Drawer()
+        
+        reply_id = tweet.in_reply_to_status_id if tweet.in_reply_to_status_id != None else tweet.id
+        status = self.api.get_status(reply_id, tweet_mode='extended')
+        self.received_tweet(tweet.user.screen_name, status.full_text, tweet.in_reply_to_screen_name, tweet.created_at)
 
-	def on_error(self, status):
-		if status == 420:
-			print("Whoops. 420 detected. Returning false.")
-			return False
-		print(status)
+        # Only do something if the status has text in it apart from the mention itself
+        if len(status.full_text) > 1:
+            # Bot shouldn't reply to itself
+            if status.user.screen_name != "CorginatorBot":
+                text = self.remove_mentions(status.full_text)
+                if "media" in status.entities:
+                    text = text.rsplit(' ', 1)[0]
+                drawer.draw_text(text)
+                self.api.update_with_media("out.jpeg", in_reply_to_status_id=tweet.id, auto_populate_reply_metadata=True)
 
-class Authenticator:
-	def authenticate(self):
-		auth = OAuthHandler(consumer_key, consumer_secret)
-		auth.set_access_token(access_token, access_secret)
-		return auth
+    def received_tweet(self, author, text, in_reply_to, time):
+        print("*** INCOMING TWEET ***")
+        print("From: @{}\nIn reply to: @{}\nTime: {}".format(author, in_reply_to, time))
+        print("Content:\n{}".format(text))
+        print("**********************\n")
 
-class TwitterStreamer:
-	def __init__(self):
-		self.twitter_authenticator = Authenticator()
+    def remove_mentions(self, text):
+        splitted = text.split(" ")
+        while splitted[0][0] == "@":
+            splitted.pop(0)
+        return ' '.join(splitted)
 
-	def stream_tweets(self, wordlist):
-		listener = Listener()
-		auth = self.twitter_authenticator.authenticate()
-		stream = Stream(auth, listener)
-		stream.filter(track=wordlist)
+    def on_error(self, status):
+        print("Deu ruim aqui amigão, me salva")
+        print(status)
 
-if __name__ == "__main__":
-	wordlist = ["@CorginatorBot"]
-	streamer = TwitterStreamer()
-	streamer.stream_tweets(wordlist)
+auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
+auth.set_access_token(ACCESS_TOKEN, ACCESS_SECRET)
+api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+
+listener = TweetListener(api)
+stream = tweepy.Stream(api.auth, listener)
+stream.filter(track=["@CorginatorBot"])
